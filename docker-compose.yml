@@ -1,0 +1,43 @@
+# Scan-Dienst: benennt neue Rohscans automatisch um.
+# Einstellungen für den eigenen Rechner in .env (Vorlage: .env.example), Geheimnisse in geheim/.
+# Start: docker compose up -d --build
+services:
+  scans-benennen:
+    build: .
+    image: scans-benennen:lokal
+    container_name: scans-benennen
+    restart: unless-stopped
+    # Eigener Benutzer mit Lese-/Schreibrecht nur auf den Scan-Ordner, nie root
+    user: "${SCAN_UID:?SCAN_UID fehlt in .env}:${SCAN_GID:?SCAN_GID fehlt in .env}"
+    environment:
+      ANTHROPIC_API_KEY_FILE: /geheim/anthropic.key
+      NTFY_URL_FILE: /geheim/ntfy.url        # optional; Datei weglassen = keine Meldungen
+      INTERVALL: "15"                        # Sekunden zwischen zwei Durchläufen (nur Ordner auflisten)
+      RUHEZEIT: "15"                         # Datei so lange und zwei Durchläufe lang unverändert
+      SEITEN: "2"                            # so viele Seiten werden gelesen (Rest ignoriert)
+      MODELL: claude-opus-5-5                # günstiger: claude-haiku-5-5
+      EFFORT: low
+      NTFY_ERFOLG: "0"                       # 1 = auch jede erfolgreiche Umbenennung melden
+      MAX_MB: "200"                          # größere PDFs werden nicht gelesen (Meldung "unklar")
+      UPDATE_TAGE: "90"                      # ab diesem Image-Alter monatlich ntfy "Update fällig"
+      # ROHSCAN_MUSTER: '^(\d{4})(\d{2})(\d{2})_(\d{6})_Report_(\d{4})\.pdf$'   # anderer Scanner
+    volumes:
+      - ${SCAN_ORDNER:?SCAN_ORDNER fehlt in .env}:/scans
+      - ./daten:/data
+      - ./geheim:/geheim:ro
+    network_mode: bridge
+    # Härtung: Dateisystem nur lesbar (beschreibbar nur /tmp und die Mounts), keine
+    # Linux-Capabilities, keine Rechteausweitung, init räumt Prozesse von OCR/Ghostscript auf
+    read_only: true
+    tmpfs:
+      - /tmp:size=768m,mode=1777            # zählt zum Speicherlimit: Kopie des PDFs + OCR
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    init: true
+    pids_limit: 200
+    mem_limit: 1536m
+    cpus: 2
+    logging:
+      driver: json-file
+      options: { max-size: "5m", max-file: "3" }

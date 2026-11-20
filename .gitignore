@@ -1,0 +1,5 @@
+# API-Schlüssel, ntfy-Kanal, lokale Einstellungen und Laufzeitdaten bleiben lokal
+geheim/
+daten/
+.env
+__pycache__/
